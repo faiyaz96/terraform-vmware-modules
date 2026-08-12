@@ -10,4 +10,15 @@ resource "vsphere_nas_datastore" "this" {
   datastore_cluster_id = var.datastore_cluster_id
   tags                 = sort(tolist(var.tags))
   custom_attributes    = var.custom_attributes
+
+  lifecycle {
+    precondition {
+      condition     = var.type != "NFS" || length(var.remote_hosts) == 1
+      error_message = "NFS v3 requires exactly one remote host; use NFS41 for multiple endpoints."
+    }
+    precondition {
+      condition     = var.type == "NFS41" || var.security_type == "AUTH_SYS"
+      error_message = "Kerberos security modes are supported only with NFS41."
+    }
+  }
 }

@@ -7,8 +7,8 @@ resource "vsphere_compute_cluster" "this" {
   datacenter_id = data.vsphere_datacenter.this.id
   folder        = var.folder
 
-  host_system_ids           = sort(tolist(var.host_system_ids))
-  host_managed              = var.host_managed
+  host_system_ids           = var.host_managed ? null : sort(tolist(var.host_system_ids))
+  host_managed              = var.host_managed ? true : null
   host_cluster_exit_timeout = var.host_cluster_exit_timeout
   force_evacuate_on_destroy = var.force_evacuate_on_destroy
 

@@ -51,6 +51,56 @@ resource "vsphere_distributed_virtual_switch" "this" {
   network_resource_control_version = var.network_io_control.version
   ignore_other_pvlan_mappings      = var.ignore_other_pvlan_mappings
 
+  management_share_level      = try(var.network_io_control.traffic_classes["management"].share_level, null)
+  management_share_count      = try(var.network_io_control.traffic_classes["management"].share_count, null)
+  management_maximum_mbit     = try(var.network_io_control.traffic_classes["management"].maximum_mbit, null)
+  management_reservation_mbit = try(var.network_io_control.traffic_classes["management"].reservation_mbit, null)
+
+  faulttolerance_share_level      = try(var.network_io_control.traffic_classes["faulttolerance"].share_level, null)
+  faulttolerance_share_count      = try(var.network_io_control.traffic_classes["faulttolerance"].share_count, null)
+  faulttolerance_maximum_mbit     = try(var.network_io_control.traffic_classes["faulttolerance"].maximum_mbit, null)
+  faulttolerance_reservation_mbit = try(var.network_io_control.traffic_classes["faulttolerance"].reservation_mbit, null)
+
+  vmotion_share_level      = try(var.network_io_control.traffic_classes["vmotion"].share_level, null)
+  vmotion_share_count      = try(var.network_io_control.traffic_classes["vmotion"].share_count, null)
+  vmotion_maximum_mbit     = try(var.network_io_control.traffic_classes["vmotion"].maximum_mbit, null)
+  vmotion_reservation_mbit = try(var.network_io_control.traffic_classes["vmotion"].reservation_mbit, null)
+
+  virtualmachine_share_level      = try(var.network_io_control.traffic_classes["virtualmachine"].share_level, null)
+  virtualmachine_share_count      = try(var.network_io_control.traffic_classes["virtualmachine"].share_count, null)
+  virtualmachine_maximum_mbit     = try(var.network_io_control.traffic_classes["virtualmachine"].maximum_mbit, null)
+  virtualmachine_reservation_mbit = try(var.network_io_control.traffic_classes["virtualmachine"].reservation_mbit, null)
+
+  iscsi_share_level      = try(var.network_io_control.traffic_classes["iscsi"].share_level, null)
+  iscsi_share_count      = try(var.network_io_control.traffic_classes["iscsi"].share_count, null)
+  iscsi_maximum_mbit     = try(var.network_io_control.traffic_classes["iscsi"].maximum_mbit, null)
+  iscsi_reservation_mbit = try(var.network_io_control.traffic_classes["iscsi"].reservation_mbit, null)
+
+  nfs_share_level      = try(var.network_io_control.traffic_classes["nfs"].share_level, null)
+  nfs_share_count      = try(var.network_io_control.traffic_classes["nfs"].share_count, null)
+  nfs_maximum_mbit     = try(var.network_io_control.traffic_classes["nfs"].maximum_mbit, null)
+  nfs_reservation_mbit = try(var.network_io_control.traffic_classes["nfs"].reservation_mbit, null)
+
+  hbr_share_level      = try(var.network_io_control.traffic_classes["hbr"].share_level, null)
+  hbr_share_count      = try(var.network_io_control.traffic_classes["hbr"].share_count, null)
+  hbr_maximum_mbit     = try(var.network_io_control.traffic_classes["hbr"].maximum_mbit, null)
+  hbr_reservation_mbit = try(var.network_io_control.traffic_classes["hbr"].reservation_mbit, null)
+
+  vsan_share_level      = try(var.network_io_control.traffic_classes["vsan"].share_level, null)
+  vsan_share_count      = try(var.network_io_control.traffic_classes["vsan"].share_count, null)
+  vsan_maximum_mbit     = try(var.network_io_control.traffic_classes["vsan"].maximum_mbit, null)
+  vsan_reservation_mbit = try(var.network_io_control.traffic_classes["vsan"].reservation_mbit, null)
+
+  vdp_share_level      = try(var.network_io_control.traffic_classes["vdp"].share_level, null)
+  vdp_share_count      = try(var.network_io_control.traffic_classes["vdp"].share_count, null)
+  vdp_maximum_mbit     = try(var.network_io_control.traffic_classes["vdp"].maximum_mbit, null)
+  vdp_reservation_mbit = try(var.network_io_control.traffic_classes["vdp"].reservation_mbit, null)
+
+  backupnfc_share_level      = try(var.network_io_control.traffic_classes["backupnfc"].share_level, null)
+  backupnfc_share_count      = try(var.network_io_control.traffic_classes["backupnfc"].share_count, null)
+  backupnfc_maximum_mbit     = try(var.network_io_control.traffic_classes["backupnfc"].maximum_mbit, null)
+  backupnfc_reservation_mbit = try(var.network_io_control.traffic_classes["backupnfc"].reservation_mbit, null)
+
   dynamic "pvlan_mapping" {
     for_each = var.pvlan_mappings
     content {
@@ -76,6 +126,10 @@ resource "vsphere_distributed_virtual_switch" "this" {
     precondition {
       condition     = alltrue([for uplink in concat(var.active_uplinks, var.standby_uplinks) : contains(var.uplinks, uplink)])
       error_message = "All active and standby uplinks must be present in uplinks."
+    }
+    precondition {
+      condition     = var.network_io_control.enabled || length(var.network_io_control.traffic_classes) == 0
+      error_message = "Network I/O Control must be enabled when traffic-class allocations are configured."
     }
   }
 }

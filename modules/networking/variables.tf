@@ -133,12 +133,56 @@ variable "netflow" {
 }
 
 variable "network_io_control" {
-  description = "Network I/O Control configuration."
+  description = "Network I/O Control and per-traffic-class allocation settings. Supported class keys are management, faulttolerance, vmotion, virtualmachine, iscsi, nfs, hbr, vsan, vdp, and backupnfc."
   type = object({
     enabled = optional(bool, false)
     version = optional(string, "version3")
+    traffic_classes = optional(map(object({
+      share_level      = optional(string, "normal")
+      share_count      = optional(number)
+      maximum_mbit     = optional(number, -1)
+      reservation_mbit = optional(number, 0)
+    })), {})
   })
   default = {}
+
+  validation {
+    condition     = contains(["version2", "version3"], var.network_io_control.version)
+    error_message = "network_io_control.version must be version2 or version3."
+  }
+
+  validation {
+    condition = alltrue([
+      for key in keys(var.network_io_control.traffic_classes) :
+      contains(["management", "faulttolerance", "vmotion", "virtualmachine", "iscsi", "nfs", "hbr", "vsan", "vdp", "backupnfc"], key)
+    ])
+    error_message = "network_io_control.traffic_classes contains an unsupported traffic-class key."
+  }
+
+  validation {
+    condition = alltrue([
+      for allocation in values(var.network_io_control.traffic_classes) :
+      contains(["low", "normal", "high", "custom"], allocation.share_level)
+    ])
+    error_message = "Every NIOC share_level must be low, normal, high, or custom."
+  }
+
+  validation {
+    condition = alltrue([
+      for allocation in values(var.network_io_control.traffic_classes) :
+      allocation.share_level != "custom" || allocation.share_count != null
+    ])
+    error_message = "A custom NIOC share level requires share_count."
+  }
+
+  validation {
+    condition = alltrue([
+      for allocation in values(var.network_io_control.traffic_classes) :
+      allocation.maximum_mbit >= -1 && allocation.reservation_mbit >= 0 &&
+      (allocation.maximum_mbit == -1 || allocation.reservation_mbit <= allocation.maximum_mbit)
+    ])
+    error_message = "NIOC limits must be -1 or greater, reservations must be non-negative, and a finite limit cannot be lower than its reservation."
+  }
 }
 
 variable "ingress_traffic_shaping" {

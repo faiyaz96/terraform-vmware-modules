@@ -56,6 +56,7 @@ Distributed port-group security controls MAC behavior. Workload firewalling and 
     ├── storage/
     ├── tagging/
     └── vm/
+        ├── content-library/
         ├── linux/
         └── windows/
 ```
@@ -87,7 +88,7 @@ The public repository can also be used directly as a Git module source:
 
 ```hcl
 module "vm" {
-  source = "git::https://github.com/faiyaz96/terraform-vmware-modules.git//modules/vm?ref=v1.0.0"
+  source = "git::https://github.com/faiyaz96/terraform-vmware-modules.git//modules/vm?ref=v1.1.0"
 
   # Required VM settings...
 }
@@ -132,6 +133,8 @@ The examples support both existing and Terraform-managed compute clusters. Impor
 - Run `terraform fmt -check -recursive`, `terraform validate`, and `terraform test` before merging.
 - Keep one VM per module call and use caller-side `for_each` with stable keys for fleets.
 - Keep `force_power_off`, mandatory placement rules, and forced cluster evacuation disabled unless an approved operational requirement needs them.
+- Keep NIOC bandwidth reservations within verified physical uplink capacity and enable only traffic classes supported by the target VDS version.
+- VMFS lifecycle is intentionally not managed until the storage owner confirms responsibility for LUN formatting and destruction.
 - Pin module sources to a semantic release tag or commit SHA and review the changelog before upgrading.
 
 ## Version assumptions
