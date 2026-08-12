@@ -116,7 +116,9 @@ Review plans with the vSphere networking, storage, and security owners before ap
 
 ## Air-gapped environments
 
-The [`airgap`](airgap/README.md) package builds a self-contained set of Terraform executables, a pinned `vmware/vsphere` provider filesystem mirror, module source, checksums, offline CLI configuration, backend examples, verification scripts, and an operator runbook. Generated binary payloads stay under the ignored `airgap/bundle/` directory and should be transferred through the organization's approved cross-domain process.
+**[Open the complete Air-gap Setup and Transfer Guide](airgap/README.md)**
+
+The `airgap` package builds a self-contained set of Terraform executables, a pinned `vmware/vsphere` provider filesystem mirror, module source, checksums, offline CLI configuration, backend examples, verification scripts, and an operator runbook. Generated binary payloads stay under the ignored `airgap/bundle/` directory and should be transferred through the organization's approved cross-domain process.
 
 Build it on a connected staging host, verify it, and then test provider initialization without public Registry access:
 
