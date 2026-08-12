@@ -1,0 +1,30 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+.terraform.tfstate.lock.info
+modules/**/.terraform.lock.hcl
+
+# Local Terraform CLI and override configuration.
+.terraformrc
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Local values can contain credentials or environment-specific data.
+*.tfvars
+*.tfvars.json
+!terraform.example.tfvars
+
+# Commit dependency lock files only in deployable root modules such as examples.
+
+# Local shells, editors, and operating-system metadata.
+.env
+.env.*
+.DS_Store
+.idea/
+.vscode/
