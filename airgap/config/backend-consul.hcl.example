@@ -1,0 +1,5 @@
+address = "consul.internal.example.com:8501"
+path    = "terraform/vsphere/production"
+scheme  = "https"
+
+# Supply the Consul token using CONSUL_HTTP_TOKEN. Do not write it here.

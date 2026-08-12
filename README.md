@@ -114,6 +114,18 @@ The example files use placeholder infrastructure names and must be updated for t
 
 Review plans with the vSphere networking, storage, and security owners before applying them. Attaching physical host NICs to a new distributed switch can interrupt connectivity if the uplink design is wrong.
 
+## Air-gapped environments
+
+The [`airgap`](airgap/README.md) package builds a self-contained set of Terraform executables, a pinned `vmware/vsphere` provider filesystem mirror, module source, checksums, offline CLI configuration, backend examples, verification scripts, and an operator runbook. Generated binary payloads stay under the ignored `airgap/bundle/` directory and should be transferred through the organization's approved cross-domain process.
+
+Build it on a connected staging host, verify it, and then test provider initialization without public Registry access:
+
+```bash
+./airgap/scripts/build-bundle.sh
+./airgap/scripts/verify-bundle.sh
+./airgap/scripts/test-offline-init.sh
+```
+
 ## Provisioning scope and order
 
 Adopt the modules in this order: tagging and inventory, networking, compute placement, storage, templates, then VMs and placement rules. Manage compute clusters, host uplinks, datastores, HA/DRS, and content libraries only when those areas are explicitly owned by the applying team.
