@@ -11,6 +11,30 @@ variable "datacenter_name" {
 variable "template_name" {
   description = "Inventory path or name of the source virtual machine template."
   type        = string
+  default     = null
+}
+
+variable "content_library_item_id" {
+  description = "UUID of a content-library item to clone. Set exactly one of template_name or content_library_item_id."
+  type        = string
+  default     = null
+}
+
+variable "guest_id" {
+  description = "Optional guest OS identifier override. Required for content-library items."
+  type        = string
+  default     = null
+}
+
+variable "scsi_type" {
+  description = "Optional SCSI controller type override. Inventory templates inherit their controller type."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.scsi_type == null ? true : contains(["lsilogic", "lsilogic-sas", "pvscsi"], var.scsi_type)
+    error_message = "scsi_type must be lsilogic, lsilogic-sas, or pvscsi."
+  }
 }
 
 variable "resource_pool_id" {
@@ -76,10 +100,59 @@ variable "cpu_hot_add_enabled" {
   default     = false
 }
 
+variable "cpu_hot_remove_enabled" {
+  description = "Allow supported guests to hot-remove CPUs."
+  type        = bool
+  default     = false
+}
+
+variable "cpu_allocation" {
+  description = "CPU allocation controls in MHz and shares. A limit of -1 means unlimited."
+  type = object({
+    reservation = optional(number, 0)
+    limit       = optional(number, -1)
+    share_level = optional(string, "normal")
+    share_count = optional(number)
+  })
+  default = {}
+
+  validation {
+    condition     = contains(["low", "normal", "high", "custom"], var.cpu_allocation.share_level)
+    error_message = "cpu_allocation.share_level must be low, normal, high, or custom."
+  }
+
+  validation {
+    condition     = var.cpu_allocation.share_level != "custom" || var.cpu_allocation.share_count != null
+    error_message = "cpu_allocation.share_count is required when share_level is custom."
+  }
+}
+
 variable "memory_hot_add_enabled" {
   description = "Allow supported guests to hot-add memory."
   type        = bool
   default     = false
+}
+
+variable "memory_allocation" {
+  description = "Memory allocation controls in MB and shares. A limit of -1 means unlimited."
+  type = object({
+    reservation        = optional(number, 0)
+    reservation_locked = optional(bool, false)
+    limit              = optional(number, -1)
+    share_level        = optional(string, "normal")
+    share_count        = optional(number)
+  })
+  default = {}
+
+  validation {
+    condition     = contains(["low", "normal", "high", "custom"], var.memory_allocation.share_level)
+    error_message = "memory_allocation.share_level must be low, normal, high, or custom."
+  }
+
+  validation {
+    condition     = var.memory_allocation.share_level != "custom" || var.memory_allocation.share_count != null
+    error_message = "memory_allocation.share_count is required when share_level is custom."
+  }
 }
 
 variable "network_interfaces" {
@@ -197,22 +270,95 @@ variable "disk_overrides" {
     size_gb           = optional(number)
     thin_provisioned  = optional(bool)
     eagerly_scrub     = optional(bool)
+    datastore_id      = optional(string)
     storage_policy_id = optional(string)
+    disk_mode         = optional(string)
+    disk_sharing      = optional(string)
+    io_reservation    = optional(number)
+    io_share_level    = optional(string, "normal")
+    io_share_count    = optional(number)
   }))
   default = {}
 }
 
-variable "additional_disks" {
-  description = "Additional virtual disks. Unit numbers must not conflict with template disks."
+variable "content_library_disks" {
+  description = "Disk declarations required when cloning a content-library item."
   type = list(object({
     label             = string
     size_gb           = number
     unit_number       = number
     thin_provisioned  = optional(bool, true)
     eagerly_scrub     = optional(bool, false)
+    datastore_id      = optional(string)
     storage_policy_id = optional(string)
+    disk_mode         = optional(string)
+    disk_sharing      = optional(string)
+    io_reservation    = optional(number)
+    io_share_level    = optional(string, "normal")
+    io_share_count    = optional(number)
   }))
   default = []
+}
+
+variable "additional_disks" {
+  description = "Additional virtual disks. Unit numbers must not conflict with template disks."
+  type = list(object({
+    label             = string
+    size_gb           = optional(number)
+    unit_number       = number
+    thin_provisioned  = optional(bool, true)
+    eagerly_scrub     = optional(bool, false)
+    datastore_id      = optional(string)
+    storage_policy_id = optional(string)
+    disk_mode         = optional(string)
+    disk_sharing      = optional(string)
+    io_reservation    = optional(number)
+    io_share_level    = optional(string, "normal")
+    io_share_count    = optional(number)
+    attach            = optional(bool, false)
+    path              = optional(string)
+    keep_on_remove    = optional(bool, false)
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for disk in var.additional_disks :
+      disk.attach ? disk.path != null : disk.size_gb != null
+    ])
+    error_message = "Each created disk requires size_gb; each attached disk requires path."
+  }
+
+  validation {
+    condition = alltrue([
+      for disk in var.additional_disks :
+      disk.attach ? endswith(lower(disk.path), ".vmdk") : true
+    ])
+    error_message = "Every attached disk path must end with .vmdk."
+  }
+}
+
+
+variable "scsi_controller_count" {
+  description = "Number of SCSI controllers presented to the VM."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.scsi_controller_count >= 1 && var.scsi_controller_count <= 4
+    error_message = "scsi_controller_count must be between 1 and 4."
+  }
+}
+
+variable "scsi_bus_sharing" {
+  description = "SCSI bus-sharing mode."
+  type        = string
+  default     = "noSharing"
+
+  validation {
+    condition     = contains(["noSharing", "virtualSharing", "physicalSharing"], var.scsi_bus_sharing)
+    error_message = "scsi_bus_sharing must be noSharing, virtualSharing, or physicalSharing."
+  }
 }
 
 variable "storage_policy_id" {
@@ -260,6 +406,30 @@ variable "linked_clone" {
   default     = false
 }
 
+variable "customization_spec_id" {
+  description = "Name/ID of an existing vCenter guest customization specification. Conflicts with inline Linux or Windows customization."
+  type        = string
+  default     = null
+}
+
+variable "customization_spec_timeout" {
+  description = "Minutes to wait for an existing guest customization specification."
+  type        = number
+  default     = 10
+}
+
+variable "ovf_network_map" {
+  description = "Optional OVF network-name to vSphere network-ID mapping for content-library items."
+  type        = map(string)
+  default     = {}
+}
+
+variable "ovf_storage_map" {
+  description = "Optional OVF storage-name to datastore-ID mapping for content-library items."
+  type        = map(string)
+  default     = {}
+}
+
 variable "clone_timeout_minutes" {
   description = "Maximum time to wait for cloning to finish."
   type        = number
@@ -270,4 +440,70 @@ variable "wait_for_guest_net_timeout" {
   description = "Minutes to wait for VMware Tools to report guest networking; use 0 to disable."
   type        = number
   default     = 10
+}
+
+variable "wait_for_guest_ip_timeout" {
+  description = "Minutes to wait for VMware Tools to report a guest IP; use 0 to disable."
+  type        = number
+  default     = 0
+}
+
+variable "wait_for_guest_net_routable" {
+  description = "Require a routable guest IP before the network waiter completes."
+  type        = bool
+  default     = true
+}
+
+variable "ignored_guest_ips" {
+  description = "Guest IP addresses or CIDRs ignored by the network waiter."
+  type        = list(string)
+  default     = []
+}
+
+variable "shutdown_wait_timeout" {
+  description = "Minutes to wait for a graceful guest shutdown before applying force_power_off behavior."
+  type        = number
+  default     = 3
+}
+
+variable "force_power_off" {
+  description = "Allow vSphere to force power off the VM after the shutdown timeout."
+  type        = bool
+  default     = false
+}
+
+variable "host_system_id" {
+  description = "Optional ESXi host managed object ID. Leave null to allow DRS placement."
+  type        = string
+  default     = null
+}
+
+variable "hardware_version" {
+  description = "Optional VM hardware version. Hardware versions cannot be downgraded."
+  type        = number
+  default     = null
+}
+
+variable "enable_disk_uuid" {
+  description = "Expose virtual disk UUIDs to the guest operating system."
+  type        = bool
+  default     = false
+}
+
+variable "cpu_performance_counters_enabled" {
+  description = "Expose virtual CPU performance counters to the guest."
+  type        = bool
+  default     = false
+}
+
+variable "latency_sensitivity" {
+  description = "VM latency-sensitivity setting."
+  type        = string
+  default     = "normal"
+}
+
+variable "swap_placement_policy" {
+  description = "VM swap-file placement policy."
+  type        = string
+  default     = "inherit"
 }
