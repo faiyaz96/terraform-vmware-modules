@@ -1,0 +1,7 @@
+# Lab use only. Production and shared environments require a remote backend
+# with locking, encryption, access control, versioning, and backups.
+terraform {
+  backend "local" {
+    path = "terraform.tfstate"
+  }
+}

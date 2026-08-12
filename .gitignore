@@ -28,3 +28,8 @@ override.tf.json
 .DS_Store
 .idea/
 .vscode/
+
+# Generated air-gap payloads contain large, platform-specific binaries.
+# Keep the reproducible scripts, configuration, and documentation in Git.
+airgap/bundle/*
+!airgap/bundle/.gitkeep
