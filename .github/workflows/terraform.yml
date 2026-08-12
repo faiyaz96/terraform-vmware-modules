@@ -1,0 +1,40 @@
+name: Terraform validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive
+
+      - name: Initialize and validate modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r directory; do
+            terraform -chdir="${directory}" init -backend=false -input=false
+            terraform -chdir="${directory}" validate
+          done < <(find modules examples -name '*.tf' -exec dirname {} \; | sort -u)
+
+      - name: Run module contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r directory; do
+            terraform -chdir="${directory}" test
+          done < <(find modules -type f -name '*.tftest.hcl' -exec dirname {} \; | xargs -n1 dirname | sort -u)
