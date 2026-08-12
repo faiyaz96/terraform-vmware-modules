@@ -15,6 +15,208 @@ Versions are pinned in `versions.env`:
 
 No credentials, private keys, vCenter certificates, state files, VM images, or operating-system packages are included.
 
+## Beginner process: connected machine to air-gapped environment
+
+The simple end-to-end process is:
+
+```text
+Build on an internet-connected machine
+              ↓
+Verify and security-scan the bundle
+              ↓
+Copy the bundle using approved transfer media or tooling
+              ↓
+Verify the bundle again inside the air-gapped environment
+              ↓
+Install Terraform and configure the local provider mirror
+              ↓
+Extract the VMware modules and add environment values
+              ↓
+Run terraform init, validate and plan
+              ↓
+Review the plan before any terraform apply
+```
+
+The commands below use Linux as the main example. Run them from the repository root on the connected machine and as a normal user unless `sudo` is shown.
+
+### Step 1: Build the bundle on the connected machine
+
+```bash
+chmod +x airgap/scripts/*.sh
+./airgap/scripts/build-bundle.sh
+./airgap/scripts/verify-bundle.sh
+```
+
+This creates `airgap/bundle/`. It contains Terraform, the VMware provider, module source, configuration examples, tests, documentation, and checksums.
+
+Confirm that the folder exists:
+
+```bash
+ls airgap/bundle
+du -sh airgap/bundle
+```
+
+### Step 2: Scan and copy the bundle
+
+First, run the security and malware scanning required by your organization. Then copy the complete contents of `airgap/bundle/` to approved transfer media or an approved cross-domain transfer location.
+
+Example using mounted transfer media:
+
+```bash
+mkdir -p /media/approved-transfer/terraform-vmware-airgap
+cp -R airgap/bundle/. /media/approved-transfer/terraform-vmware-airgap/
+```
+
+Do not copy only the Terraform executable. The `provider-mirror`, `config`, `modules`, `scripts`, and `SHA256SUMS` files are also required.
+
+### Step 3: Copy it into the air-gapped environment
+
+After the transfer has been approved and imported, copy the complete folder onto the Terraform runner:
+
+```bash
+sudo mkdir -p /opt/terraform/airgap-bundle
+sudo cp -R /media/approved-transfer/terraform-vmware-airgap/. /opt/terraform/airgap-bundle/
+cd /opt/terraform/airgap-bundle
+```
+
+Your organization may use a managed file-transfer system instead of removable media. The important point is that the entire bundle arrives unchanged.
+
+### Step 4: Verify the transferred files
+
+Run verification before installing or executing Terraform:
+
+```bash
+sudo chmod +x scripts/*.sh
+./scripts/verify-bundle.sh
+```
+
+Every file should report `OK`, followed by:
+
+```text
+All air-gap bundle checksums are valid.
+```
+
+Stop if a file is missing or a checksum fails. Do not continue with a damaged or modified bundle.
+
+### Step 5: Test offline provider installation
+
+This test uses the Terraform binary and provider mirror inside the bundle. It does not require vCenter credentials:
+
+```bash
+./scripts/test-offline-init.sh
+```
+
+The expected final message is similar to:
+
+```text
+Offline provider initialization succeeded for linux_amd64.
+```
+
+### Step 6: Install the correct Terraform binary
+
+Check the runner architecture:
+
+```bash
+uname -m
+```
+
+- Use `linux_amd64` when the result is `x86_64`.
+- Use `linux_arm64` when the result is `aarch64` or `arm64`.
+
+For a common x86-64 Linux runner:
+
+```bash
+sudo install -m 0755 bin/linux_amd64/terraform /usr/local/bin/terraform
+terraform version
+```
+
+For an ARM64 runner, replace `linux_amd64` with `linux_arm64`.
+
+### Step 7: Install the provider mirror configuration
+
+```bash
+sudo mkdir -p /opt/terraform/provider-mirror /etc/terraform
+sudo cp -R provider-mirror/. /opt/terraform/provider-mirror/
+sudo cp config/terraform-airgap.tfrc.example /etc/terraform/terraform.tfrc
+
+export TF_CLI_CONFIG_FILE=/etc/terraform/terraform.tfrc
+export CHECKPOINT_DISABLE=1
+```
+
+Add these environment variables to the Terraform runner or CI job configuration so they are present for every Terraform command. The configuration contains no public Registry fallback.
+
+### Step 8: Extract the VMware modules
+
+Create a user-owned working directory so Terraform does not need to run as root:
+
+```bash
+mkdir -p ~/terraform-workspace/terraform-vmware-modules
+tar -xzf modules/terraform-vmware-modules-v1.1.0.tar.gz \
+  -C ~/terraform-workspace/terraform-vmware-modules
+```
+
+The examples use relative module paths, so keep the `modules` and `examples` folders together.
+
+### Step 9: Prepare an example
+
+The following uses the Linux VM example. It prepares configuration but does not create a VM:
+
+```bash
+cd ~/terraform-workspace/terraform-vmware-modules/examples/vm/linux
+cp terraform.example.tfvars terraform.tfvars
+```
+
+Edit `terraform.tfvars` and replace every placeholder with the real air-gapped vCenter values, such as the datacenter, cluster, datastore, network, template, project, and VM name.
+
+Supply credentials through an approved internal secret system or protected shell session:
+
+```bash
+export TF_VAR_vsphere_user='terraform@vsphere.local'
+export TF_VAR_vsphere_password='retrieve-from-approved-secret-system'
+```
+
+Do not write the password into `terraform.tfvars`.
+
+### Step 10: Initialize, validate and review
+
+For initial configuration validation without configuring production state:
+
+```bash
+terraform init -backend=false
+terraform providers
+terraform validate
+terraform plan -var-file=terraform.tfvars
+```
+
+At this point:
+
+- `terraform init` should install `vmware/vsphere` from the local mirror.
+- `terraform validate` should confirm that the configuration is valid.
+- `terraform plan` should show what Terraform intends to create or change.
+- Do not run `terraform apply` yet.
+
+Before production use, configure the approved internal state backend, run `terraform init` again with that backend, save the plan through the approved process, and have the VMware owner review it. Only run `terraform apply` after the plan and change have been approved.
+
+### Windows runner summary
+
+For Windows, copy the bundle to a location such as `C:\terraform\airgap-bundle` and run PowerShell:
+
+```powershell
+Set-Location C:\terraform\airgap-bundle
+.\scripts\verify-bundle.ps1
+.\scripts\test-offline-init.ps1
+
+Copy-Item .\bin\windows_amd64\terraform.exe C:\terraform\terraform.exe
+Copy-Item .\provider-mirror C:\terraform\provider-mirror -Recurse
+Copy-Item .\config\terraform-airgap-windows.tfrc.example C:\terraform\terraform.tfrc
+
+$env:TF_CLI_CONFIG_FILE = "C:\terraform\terraform.tfrc"
+$env:CHECKPOINT_DISABLE = "1"
+C:\terraform\terraform.exe version
+```
+
+Configure the same environment variables permanently in the Windows runner or CI service before using Terraform.
+
 ## Build on a connected staging host
 
 The connected build host must have Bash, `curl`, `tar`, `unzip`, and either `sha256sum` or `shasum`.
@@ -79,7 +281,7 @@ Set-Location C:\transfer\terraform-vmware-airgap
 The following paths are examples; use organization-approved installation locations and permissions.
 
 1. Copy the Terraform executable for the runner architecture to `/usr/local/bin/terraform` and make it executable.
-2. Copy `bundle/provider-mirror` to `/opt/terraform/provider-mirror`.
+2. Copy `provider-mirror` to `/opt/terraform/provider-mirror`.
 3. Copy `config/terraform-airgap.tfrc.example` to `/etc/terraform/terraform.tfrc`.
 4. Extract the module archive into an internal Git repository or a controlled local module directory.
 
